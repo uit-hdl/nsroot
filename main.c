@@ -264,14 +264,14 @@ int main(int argc, char *argv[], char *envp[]) {
   } else {
     args.new_root = argv[optind];
     optind++;
-    if(optind < argc) {
-      args.argv = &argv[optind];
-    } else {
-      char *default_argv[] = {default_shell(), "-i", NULL};
-      args.argv = default_argv;
-    }
   }
 
+  if(optind < argc) {
+    args.argv = &argv[optind];
+  } else {
+    char *default_argv[] = {default_shell(), "-i", NULL};
+    args.argv = default_argv;
+  }
 
   int ret = run(&args);
   return ret;

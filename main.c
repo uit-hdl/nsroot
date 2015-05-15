@@ -16,6 +16,8 @@
 #include <string.h>
 #include <alloca.h>
 
+extern int pivot_root(const char *, const char *);
+
 const char usage_string[] = "\
 Usage: %s [OPTION] NEWROOT [COMMAND [ARG]...]\n\
    or: %s [OPTION]\n\

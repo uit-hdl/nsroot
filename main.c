@@ -15,6 +15,7 @@
 #include <getopt.h>
 #include <string.h>
 #include <alloca.h>
+#include <stdbool.h>
 
 extern int pivot_root(const char *, const char *);
 
@@ -30,6 +31,7 @@ OPTION:\n\
                                          /home/$USER/private:/mnt:ro  # for read-only\n\
   -o,  --old-root=/mnt   Where pivot_root should mount the old root before\n\
                          unmounting it. Path is relative to NEWROOT.\n\
+  -r   --read-only       Mount NEWROOT as read-only.\n\
   -h,  --help\n\
 \n\
 If no COMMAND is given, run '${SHELL} -i' (default: '%s -i')\n\
@@ -74,6 +76,7 @@ struct args {
   enum {SR_PIVOT_ROOT, SR_CHROOT} switch_root_method;
   mount_t *user_bind_mounts;
   unsigned int clone_flags;
+  bool read_only_root;
 };
 
 mount_t define_bind_mount(char *source, char *target) {
@@ -182,6 +185,12 @@ static int child_fun(void *_arg) {
     if(mount(new_root_abs, new_root_abs, NULL, MS_BIND, NULL)) {
       fail("mount");
     }
+    if(args->read_only_root) {
+      errno = 0;
+      if(mount("", new_root_abs, NULL, MS_BIND | MS_RDONLY | MS_REMOUNT, NULL)) {
+        fail("remount NEWROOT readonly");
+      }
+    }
     errno = 0;
     if(pivot_root(new_root_abs, old_root_abs) != 0) {
       fail("pivot_root");
@@ -248,9 +257,10 @@ int main(int argc, char *argv[], char *envp[]) {
       {"help", no_argument, 0, 'h'},
       {"volume", required_argument, 0, 'v'},
       {"old-root", required_argument, 0, 'o'},
+      {"read-only", no_argument, 0, 'r'}
     };
 
-    int c = getopt_long(argc, argv, "hv:o:",
+    int c = getopt_long(argc, argv, "hv:o:r",
                         long_options, &option_index);
     if(c == -1) break;
     switch(c) {
@@ -292,6 +302,10 @@ int main(int argc, char *argv[], char *envp[]) {
       if(args.old_root[0] != '/') {
         argument_error("old-root must be an absolute path inside NEWROOT.");
       }
+      args.switch_root_method = SR_PIVOT_ROOT;
+      break;
+    case 'r':
+      args.read_only_root = true;
       args.switch_root_method = SR_PIVOT_ROOT;
       break;
     }

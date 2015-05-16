@@ -88,10 +88,51 @@ mount_t define_bind_mount(char *source, char *target) {
   return m;
 }
 
-int mount_all(mount_t *mo) {
+void fail(char *what) {
+  fprintf(stderr, "Error: %s failed (errno: %d): %s\n", what, errno, strerror(errno));
+  exit(1);
+}
+
+int join_paths(char *buffer, int size, char *a, char *b) {
+  // todo: bug when a or b == "/"
+  if(b[0] == '/') {
+    b++;
+  }
+  int a_len = strlen(a);
+  if(a[a_len-1] == '/') a[a_len-1] = 0x0;
+  int ret = snprintf(buffer, size, "%s/%s", a, b);
+  if (ret < 0 || ret >= size) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+int mount_all(mount_t *mo, char *source_prefix, char *target_prefix) {
+  int ret;
   for(mount_t *m = mo; m != NULL; m = m->next) {
-    int ret = mount(m->source, m->target, m->filesystemtype, m->mountflags, m->data);
+    char source_path_buf[PATH_MAX];
+    char target_path_buf[PATH_MAX];
+    char *source_path = mo->source;
+    char *target_path = mo->target;
+    if(source_prefix != NULL) {
+      if(join_paths(source_path_buf, sizeof(source_path_buf), source_prefix, mo->source)) {
+        return -1;
+      }
+      source_path = source_path_buf;
+    }
+    if(target_prefix != NULL) {
+      if(join_paths(target_path_buf, sizeof(target_path_buf), target_prefix, mo->target)) {
+        return -1;
+      }
+      target_path = target_path_buf;
+    }
+    ret = mount(source_path, target_path, m->filesystemtype, m->mountflags, m->data);
     if(ret) return ret;
+    if (m->mountflags & MS_RDONLY) {
+      ret = mount("", target_path, NULL, MS_RDONLY | MS_REMOUNT | MS_BIND, NULL);
+      if(ret) return ret;
+    }
   }
   return 0;
 }
@@ -99,11 +140,6 @@ int mount_all(mount_t *mo) {
 void insert_mount(mount_t **mounts, mount_t *new_mount) {
   new_mount->next = *mounts;
   *mounts = new_mount;
-}
-
-void fail(char *what) {
-  fprintf(stderr, "Error: %s failed (errno: %d): %s\n", what, errno, strerror(errno));
-  exit(1);
 }
 
 
@@ -115,11 +151,6 @@ static int child_fun(void *_arg) {
   if(read(args->pipe_fd[0], &ch, 1)) {
     fail("reading pipe");
   }
-
-  errno = 0;
-  if(mount_all(args->user_bind_mounts)) {
-    fail("mount");
-  };
 
   char new_root_abs[PATH_MAX];
 
@@ -155,12 +186,19 @@ static int child_fun(void *_arg) {
     if(pivot_root(new_root_abs, old_root_abs) != 0) {
       fail("pivot_root");
     }
+    errno = 0;
     if (chdir("/")) {
       fail("chdir(\"/\") after pivot_root");
     }
+    errno = 0;
+    if(mount_all(args->user_bind_mounts, args->old_root, NULL)) {
+      fail("bind mount user volumes");
+    };
+    errno = 0;
     if(mount("", args->old_root, "dontcare", MS_REC | MS_PRIVATE, "")) {
       fail("create private mount over old root");
     }
+    errno = 0;
     if(umount2(args->old_root, MNT_DETACH)) {
       fail("umount2(old_root)");
     }

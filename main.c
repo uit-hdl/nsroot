@@ -16,6 +16,7 @@
 #include <string.h>
 #include <alloca.h>
 #include <stdbool.h>
+#include <fcntl.h>
 
 extern int pivot_root(const char *, const char *);
 
@@ -33,6 +34,10 @@ OPTION:\n\
                          unmounting it. Path is relative to NEWROOT.\n\
   -r   --read-only       Mount NEWROOT as read-only.\n\
   -k   --keep-old-root   Do not unmount old-root after pivot_root.\n\
+  -M   --uid-map         Specify uid-map. See user_namespaces(7) and subuid(5)\n\
+                         for details.\n\
+  -G   --gid-map         Specify gid-map. See user_namespaces(7) and subgid(5)\n\
+                         for details.\n\
   -h,  --help\n\
 \n\
 If no COMMAND is given, run '${SHELL} -i' (default: '%s -i')\n\
@@ -74,6 +79,8 @@ struct args {
   char **argv;
   char *new_root;
   char *old_root;
+  char *uid_map;
+  char *gid_map;
   enum {SR_PIVOT_ROOT, SR_CHROOT} switch_root_method;
   mount_t *user_bind_mounts;
   unsigned int clone_flags;
@@ -225,14 +232,41 @@ static int child_fun(void *_arg) {
   return -1;
 }
 
+int write_file(char *path, char *contents) {
+  int f = open(path, O_WRONLY | O_SYNC);
+  if(f == -1) return -1;
+  int ret = dprintf(f, "%s", contents);
+  if(ret < 0 || ret == EOF) return -1;
+  return close(f);
+}
+
+void replace(char *str, char old, char new) {
+  for(int i = 0; str[i] != 0; i++) {
+    if(str[i] == old) {
+      str[i] = new;
+    }
+  }
+}
 
 int run(args_t *args) {
-
+  int ret;
   pipe(args->pipe_fd); // fail
 
   pid_t child_pid = clone(child_fun, child_stack + STACK_SIZE, args->clone_flags | SIGCHLD, args);
 
-  // todo: set gid/uid maps
+  char path[PATH_MAX];
+
+  if(args->uid_map != NULL) {
+    ret = snprintf(path, sizeof(path), "/proc/%d/uid_map", child_pid);
+    if(ret < 0 || ret > sizeof(path)) fail("snprintf");
+    if (write_file(path, args->uid_map)) fail("writing uid_map");
+  }
+
+  if(args->gid_map != NULL) {
+    snprintf(path, sizeof(path), "/proc/%d/gid_map", child_pid);
+    if(ret < 0 || ret > sizeof(path)) fail("snprintf");
+    if(write_file(path, args->gid_map)) fail("writing gid_map");
+  }
 
   close(args->pipe_fd[1]);
   return waitpid(child_pid, NULL, 0);
@@ -250,6 +284,8 @@ int main(int argc, char *argv[], char *envp[]) {
     .clone_flags = flags,
     .argv = NULL,
     .new_root = NULL,
+    .uid_map = NULL,
+    .gid_map = NULL,
     .user_bind_mounts = NULL,
     .switch_root_method = SR_CHROOT,
     .old_root = "/mnt",
@@ -263,10 +299,12 @@ int main(int argc, char *argv[], char *envp[]) {
       {"volume", required_argument, 0, 'v'},
       {"old-root", required_argument, 0, 'o'},
       {"read-only", no_argument, 0, 'r'},
-      {"keep-old-root", no_argument, 0, 'k'}
+      {"keep-old-root", no_argument, 0, 'k'},
+      {"uid-map", required_argument, 0, 'M'},
+      {"gid-map", required_argument, 0, 'G'}
     };
 
-    int c = getopt_long(argc, argv, "hv:o:rk",
+    int c = getopt_long(argc, argv, "hv:o:rkM:G:",
                         long_options, &option_index);
     if(c == -1) break;
     switch(c) {
@@ -317,6 +355,14 @@ int main(int argc, char *argv[], char *envp[]) {
     case 'k':
       args.keep_old_root = true;
       args.switch_root_method = SR_PIVOT_ROOT;
+      break;
+    case 'M':
+      replace(optarg, ',', '\n');
+      args.uid_map = optarg;
+      break;
+    case 'G':
+      replace(optarg, ',', '\n');
+      args.gid_map = optarg;
       break;
     }
   }

@@ -32,10 +32,11 @@ OPTION:\n\
   -o,  --old-root=/mnt   Where pivot_root should mount the old root before\n\
                          unmounting it. Path is relative to NEWROOT.\n\
   -r   --read-only       Mount NEWROOT as read-only.\n\
+  -k   --keep-old-root   Do not unmount old-root after pivot_root.\n\
   -h,  --help\n\
 \n\
 If no COMMAND is given, run '${SHELL} -i' (default: '%s -i')\n\
-\n\n\
+\n\
 Examples:\n\
     <todo>\n\
 \n\
@@ -77,6 +78,7 @@ struct args {
   mount_t *user_bind_mounts;
   unsigned int clone_flags;
   bool read_only_root;
+  bool keep_old_root;
 };
 
 mount_t define_bind_mount(char *source, char *target) {
@@ -203,13 +205,15 @@ static int child_fun(void *_arg) {
     if(mount_all(args->user_bind_mounts, args->old_root, NULL)) {
       fail("bind mount user volumes");
     };
-    errno = 0;
-    if(mount("", args->old_root, "dontcare", MS_REC | MS_PRIVATE, "")) {
-      fail("create private mount over old root");
-    }
-    errno = 0;
-    if(umount2(args->old_root, MNT_DETACH)) {
-      fail("umount2(old_root)");
+    if(!args->keep_old_root) {
+      errno = 0;
+      if(mount("", args->old_root, "dontcare", MS_REC | MS_PRIVATE, "")) {
+        fail("create private mount over old root");
+      }
+      errno = 0;
+      if(umount2(args->old_root, MNT_DETACH)) {
+        fail("umount2(old_root)");
+      }
     }
     break;
   }
@@ -249,6 +253,7 @@ int main(int argc, char *argv[], char *envp[]) {
     .user_bind_mounts = NULL,
     .switch_root_method = SR_CHROOT,
     .old_root = "/mnt",
+    .keep_old_root = false,
   };
 
   while(1) {
@@ -257,10 +262,11 @@ int main(int argc, char *argv[], char *envp[]) {
       {"help", no_argument, 0, 'h'},
       {"volume", required_argument, 0, 'v'},
       {"old-root", required_argument, 0, 'o'},
-      {"read-only", no_argument, 0, 'r'}
+      {"read-only", no_argument, 0, 'r'},
+      {"keep-old-root", no_argument, 0, 'k'}
     };
 
-    int c = getopt_long(argc, argv, "hv:o:r",
+    int c = getopt_long(argc, argv, "hv:o:rk",
                         long_options, &option_index);
     if(c == -1) break;
     switch(c) {
@@ -306,6 +312,10 @@ int main(int argc, char *argv[], char *envp[]) {
       break;
     case 'r':
       args.read_only_root = true;
+      args.switch_root_method = SR_PIVOT_ROOT;
+      break;
+    case 'k':
+      args.keep_old_root = true;
       args.switch_root_method = SR_PIVOT_ROOT;
       break;
     }

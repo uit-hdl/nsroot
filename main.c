@@ -250,7 +250,9 @@ void replace(char *str, char old, char new) {
 
 int run(args_t *args) {
   int ret;
-  pipe(args->pipe_fd); // fail
+  char *error_msg;
+
+  if(pipe(args->pipe_fd)) fail("creating pipe");
 
   pid_t child_pid = clone(child_fun, child_stack + STACK_SIZE, args->clone_flags | SIGCHLD, args);
 
@@ -258,18 +260,33 @@ int run(args_t *args) {
 
   if(args->uid_map != NULL) {
     ret = snprintf(path, sizeof(path), "/proc/%d/uid_map", child_pid);
-    if(ret < 0 || ret > sizeof(path)) fail("snprintf");
-    if (write_file(path, args->uid_map)) fail("writing uid_map");
+    if(ret < 0 || ret > sizeof(path)) {
+      error_msg = "snprintf"; goto fail;
+    }
+    if (write_file(path, args->uid_map)) {
+      error_msg = "writing uid_map"; goto fail;
+    }
   }
 
   if(args->gid_map != NULL) {
     snprintf(path, sizeof(path), "/proc/%d/gid_map", child_pid);
-    if(ret < 0 || ret > sizeof(path)) fail("snprintf");
-    if(write_file(path, args->gid_map)) fail("writing gid_map");
+    if(ret < 0 || ret > sizeof(path)) {
+      error_msg = "snprintf"; goto fail;
+    }
+    if(write_file(path, args->gid_map)) {
+      error_msg = "writing gid_map"; goto fail;
+    }
   }
 
   close(args->pipe_fd[1]);
   return waitpid(child_pid, NULL, 0);
+
+fail:
+  kill(child_pid, SIGKILL);
+  close(args->pipe_fd[1]);
+  waitpid(child_pid, NULL, 0);
+  fail(error_msg);
+  return -1; // never happens
 }
 
 void argument_error(char *err) {

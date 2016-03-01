@@ -63,9 +63,9 @@ void print_usage(char *exec_name) {
 
 static char child_stack[STACK_SIZE];
 
-typedef struct mount mount_t;
+typedef struct mount mount_args;
 struct mount {
-  mount_t *next;
+  mount_args *next;
   char *source;
   char *target;
   char *filesystemtype;
@@ -73,7 +73,7 @@ struct mount {
   const void *data;
 };
 
-typedef struct args args_t;
+typedef struct args nsroot_args;
 struct args {
   int pipe_fd[2];
   char **argv;
@@ -82,14 +82,14 @@ struct args {
   char *uid_map;
   char *gid_map;
   enum {SR_PIVOT_ROOT, SR_CHROOT} switch_root_method;
-  mount_t *user_bind_mounts;
+  mount_args *user_bind_mounts;
   unsigned int clone_flags;
   bool read_only_root;
   bool keep_old_root;
 };
 
-mount_t define_bind_mount(char *source, char *target) {
-  mount_t m = {
+mount_args define_bind_mount(char *source, char *target) {
+  mount_args m = {
     .next = NULL,
     .source = source,
     .target = target,
@@ -120,9 +120,9 @@ int join_paths(char *buffer, int size, char *a, char *b) {
   }
 }
 
-int mount_all(mount_t *mo, char *source_prefix, char *target_prefix) {
+int mount_all(mount_args *mo, char *source_prefix, char *target_prefix) {
   int ret;
-  for(mount_t *m = mo; m != NULL; m = m->next) {
+  for(mount_args *m = mo; m != NULL; m = m->next) {
     char source_path_buf[PATH_MAX];
     char target_path_buf[PATH_MAX];
     char *source_path = mo->source;
@@ -149,14 +149,14 @@ int mount_all(mount_t *mo, char *source_prefix, char *target_prefix) {
   return 0;
 }
 
-void insert_mount(mount_t **mounts, mount_t *new_mount) {
+void insert_mount(mount_args **mounts, mount_args *new_mount) {
   new_mount->next = *mounts;
   *mounts = new_mount;
 }
 
 
 static int child_fun(void *_arg) {
-  args_t *args = (args_t *) _arg;
+  nsroot_args *args = (nsroot_args *) _arg;
   close(args->pipe_fd[1]);
 
   char ch;
@@ -248,7 +248,7 @@ void replace(char *str, char old, char new) {
   }
 }
 
-int run(args_t *args) {
+int run(nsroot_args *args) {
   int ret;
   char *error_msg;
 
@@ -297,7 +297,7 @@ void argument_error(char *err) {
 int main(int argc, char *argv[], char *envp[]) {
   int flags = CLONE_NEWUSER | CLONE_NEWNS;
 
-  args_t args = {
+  nsroot_args args = {
     .clone_flags = flags,
     .argv = NULL,
     .new_root = NULL,
@@ -350,7 +350,7 @@ int main(int argc, char *argv[], char *envp[]) {
         }
         if(strsep(stringp, ":") != NULL) argument_error(msg);
       }
-      mount_t *m = alloca(sizeof(mount_t));
+      mount_args *m = alloca(sizeof(mount_args));
       *m = define_bind_mount(src, dest);
       m->mountflags |= flags;
       insert_mount(&args.user_bind_mounts, m);

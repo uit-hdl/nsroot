@@ -256,6 +256,10 @@ int run(nsroot_args *args) {
 
   pid_t child_pid = clone(child_fun, child_stack + STACK_SIZE, args->clone_flags | SIGCHLD, args);
 
+  if(child_pid == -1) {
+    fail("clone");
+  }
+
   char path[PATH_MAX];
 
   if(args->uid_map != NULL) {

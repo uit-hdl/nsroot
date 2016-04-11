@@ -194,7 +194,7 @@ static int child_fun(void *_arg) {
     }
     errno = 0;
     if(mount(new_root_abs, new_root_abs, NULL, MS_BIND, NULL)) {
-      fail("mount");
+      fail("mount NEWROOT");
     }
     if(args->read_only_root) {
       errno = 0;

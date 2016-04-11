@@ -9,6 +9,8 @@ CFLAGS = -g -Wall -std=c99
 
 default: $(TARGET)
 all: default
+install: default
+	cp nsroot /usr/local/bin/nsroot
 
 OBJECTS = $(patsubst %.c, %.o, $(wildcard *.c))
 HEADERS = $(wildcard *.h)

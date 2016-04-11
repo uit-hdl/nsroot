@@ -39,6 +39,7 @@ OPTION:\n\
   -G   --gid-map         Specify gid-map. See user_namespaces(7) and subgid(5)\n\
                          for details.\n\
   -n   --net             Create a new network namespace.\n\
+  -i   --ipc             Create a new IPC namespace.\n\
   -h,  --help\n\
 \n\
 If no COMMAND is given, run '${SHELL} -i' (default: '%s -i')\n\
@@ -324,10 +325,11 @@ int main(int argc, char *argv[], char *envp[]) {
       {"keep-old-root", no_argument, 0, 'k'},
       {"uid-map", required_argument, 0, 'M'},
       {"gid-map", required_argument, 0, 'G'},
-      {"net", no_argument, 0, 'n'}
+      {"net", no_argument, 0, 'n'},
+      {"ipc", no_argument, 0, 'i'}
     };
 
-    int c = getopt_long(argc, argv, "hv:o:rkM:G:n",
+    int c = getopt_long(argc, argv, "hv:o:rkM:G:ni",
                         long_options, &option_index);
     if(c == -1) break;
     switch(c) {
@@ -389,6 +391,9 @@ int main(int argc, char *argv[], char *envp[]) {
       break;
     case 'n':
       args.clone_flags |= CLONE_NEWNET;
+      break;
+    case 'i':
+      args.clone_flags |= CLONE_NEWIPC;
       break;
     }
   }

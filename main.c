@@ -127,16 +127,16 @@ int mount_all(mount_args *mo, char *source_prefix, char *target_prefix) {
   for(mount_args *m = mo; m != NULL; m = m->next) {
     char source_path_buf[PATH_MAX];
     char target_path_buf[PATH_MAX];
-    char *source_path = mo->source;
-    char *target_path = mo->target;
+    char *source_path = m->source;
+    char *target_path = m->target;
     if(source_prefix != NULL) {
-      if(join_paths(source_path_buf, sizeof(source_path_buf), source_prefix, mo->source)) {
+      if(join_paths(source_path_buf, sizeof(source_path_buf), source_prefix, m->source)) {
         return -1;
       }
       source_path = source_path_buf;
     }
     if(target_prefix != NULL) {
-      if(join_paths(target_path_buf, sizeof(target_path_buf), target_prefix, mo->target)) {
+      if(join_paths(target_path_buf, sizeof(target_path_buf), target_prefix, m->target)) {
         return -1;
       }
       target_path = target_path_buf;

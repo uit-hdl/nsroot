@@ -1,5 +1,7 @@
 /*
   The general structure and some code is taken from: http://man7.org/linux/man-pages/man7/user_namespaces.7.html
+  Other important sources:
+    - https://www.ibm.com/developerworks/library/l-mount-namespaces/
 */
 
 #define _GNU_SOURCE

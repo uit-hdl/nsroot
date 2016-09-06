@@ -1,5 +1,6 @@
 /*
   The general structure and some code is taken from: http://man7.org/linux/man-pages/man7/user_namespaces.7.html
+  Introduction to namespaces: https://www.toptal.com/linux/separation-anxiety-isolating-your-system-with-linux-namespaces
   Other important sources:
     - https://www.ibm.com/developerworks/library/l-mount-namespaces/
 */

@@ -299,7 +299,7 @@ fail:
 }
 
 void argument_error(char *err) {
-  printf("chrootns: %s See '--help' for details.\n", err);
+  printf("nsroot: %s See '--help' for details.\n", err);
   exit(-1);
 }
 
